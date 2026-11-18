@@ -172,6 +172,20 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 .pill.bad{background:var(--s1);color:#fff}
 .pill.ok{background:var(--sunk);color:var(--muted)}
 .ekod{font-family:var(--f-num);font-weight:600}
+.vsec{display:flex;background:var(--sunk);border-radius:10px;padding:3px;gap:3px}
+.vsec button{flex:1;border:0;background:transparent;border-radius:8px;padding:7px;font-weight:600;color:var(--muted)}
+.vsec button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.kt th,.kt td{font-size:12.5px;padding:6px 8px}
+.kt td:nth-child(2){white-space:normal;min-width:180px}
+.kt tr.krow{cursor:pointer}
+.kt tr.krow:hover td,.kt tr.on td{background:var(--accent-soft)}
+.kt tfoot td{background:var(--sunk);white-space:normal}
+.kh{display:flex;flex-direction:column;gap:8px}
+#hsheet .dtop{align-items:flex-start}
+#hsheet h2{font-size:17px}
+.kh .tbl td,.kh .tbl th{font-size:12px;padding:4px 8px}
+.row[data-hk]{cursor:pointer}
+.row[data-hk]:hover{border-color:var(--accent)}
 .login{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .lbox{width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
 .lbox img{border-radius:14px;align-self:center}
@@ -234,6 +248,12 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 </div>
 
 <div class="full" id="full" hidden></div>
+<div class="sheet" id="hsheet" hidden>
+  <div class="box" role="dialog" aria-labelledby="hT">
+    <div class="dtop"><h2 id="hT"></h2><button class="btn" id="hClose" type="button">Kapat</button></div>
+    <div id="hBody"></div>
+  </div>
+</div>
 <div class="sheet" id="sheet" hidden>
   <div class="box" role="dialog" aria-labelledby="shT">
     <h2 id="shT">Günlük Excel yükle</h2>
@@ -418,7 +438,7 @@ function grafikCiz(spec){
   const u=spec.birim||''; const fmt=v=>(Math.round(v*100)/100).toString().replace('.',',')+(u==='%'?'%':'');
   let g='';
   for(let v=y0;v<=y1+1e-9;v+=step){g+=`<line x1="${L}" x2="${W-R}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${sy(v)+4}" text-anchor="end" font-size="12" fill="var(--muted)" font-family="var(--f-num)">${esc(fmt(v))}</text>`;}
-  const every=Math.ceil(x.length/10);
+  const every=Math.ceil(x.length/Math.max(3,Math.floor((W-L-R)/50)));
   x.forEach((l,i)=>{ if(i%every===0||i===x.length-1) g+=`<text x="${sx(i)}" y="${H-12}" text-anchor="middle" font-size="12" fill="var(--muted)" font-family="var(--f-num)">${esc(l)}</text>`;});
   ser.forEach((s,si)=>{const c=`var(--c${si+1})`;
     if(bar){const bw=pw*.72/ser.length; s.degerler.forEach((v,i)=>{ if(typeof v!=='number') return; const xx=sx(i)-pw*.36+bw*si; const ya=sy(Math.max(v,0)),yb=sy(Math.min(v,0)); g+=`<rect x="${xx}" y="${ya}" width="${Math.max(1,bw-1)}" height="${Math.max(1,yb-ya)}" fill="${c}" rx="2"><title>${esc(s.ad)} ${esc(x[i])}: ${esc(fmt(v))}</title></rect>`;});}
@@ -500,24 +520,56 @@ function renderFull(){
     <div class="tlist">${siraliEkipler(gun).map((e,i)=>satirHTML(gun,pg,e,i)).join('')}</div>
     <div class="fleg">Eğri: ay başından PP · Şerit: skor dağılımı (kırmızı 1 → yeşil 5) · Ok: dünden fark</div></div>`;
 }
+function hedefGecmis(e,k){
+  return gunler().filter(x=>x<=S.sel).map(x=>{const r=S.days[x].ekipler[e]?.r.find(y=>y[0]===k);return r?{t:x,pay:r[2],payda:r[3],oran:r[4],skor:r[5],puan:r[6]}:null}).filter(Boolean);
+}
+function gecmisHTML(e,r){
+  const h=hedefGecmis(e,r.k); const v=h.filter(x=>x.payda>0);
+  let ch='';
+  if(v.length>1){const n=grafikCiz({tip:'cizgi',baslik:`${r.k} oranı · ay başından`,x:v.map(x=>kisa(x.t)),seriler:[{ad:'Oran',degerler:v.map(x=>Math.round(x.oran*1000)/10)}],birim:'%'}); if(n) ch=n.outerHTML;}
+  const tab=`<div class="tw"><table class="tbl"><thead><tr><th>Tarih</th><th>Pay/Payda</th><th>Oran</th><th>Skor</th><th>Puan</th></tr></thead><tbody>${h.slice().reverse().map(x=>`<tr><td class="num">${kisa(x.t)}</td><td class="num">${x.payda>0?x.pay+'/'+x.payda:'veri yok'}</td><td class="num">${x.payda>0?pct(x.oran):'–'}</td><td><span class="sc s${x.skor}">${x.skor}</span></td><td class="num">${f2(x.puan)}</td></tr>`).join('')}</tbody></table></div>`;
+  const not=r.veri?`<p class="status" style="margin:0">Skala ${esc(skalaTxt(r.sk))} (${r.up?'yüksek iyi':'düşük iyi'}) · ${esc(sonrakiTxt(r))}${r.risk!=null?' · '+esc(riskTxt(r)):''}</p>`:'<p class="status" style="margin:0">Bu gün için veri yok.</p>';
+  return `<div class="kh">${not}${ch}${tab}</div>`;
+}
+function gecmisAc(k){
+  const gun=S.days[S.sel]; const e=S.team; if(!gun||!e) return;
+  const a=ekipAnaliz(gun,e); const r=a&&a.rows.find(x=>x.k===k); if(!r) return;
+  S.acik=k; $('hT').textContent=`${e} · ${r.k} ${r.ad}`;
+  $('hsheet').hidden=false; $('hBody').innerHTML=gecmisHTML(e,r);
+  document.querySelectorAll('.kt tr.krow').forEach(x=>x.classList.toggle('on',x.dataset.hk===k));
+}
+function gecmisKapat(){$('hsheet').hidden=true;S.acik=null;document.querySelectorAll('.kt tr.on').forEach(x=>x.classList.remove('on'));}
 function renderDetay(v,gun,e){
   const a=ekipAnaliz(gun,e); const g=gunler().filter(x=>x<=S.sel);
   const hist=g.map(x=>S.days[x].ekipler[e]?.pp??null);
-  const rows=a.rows.slice().sort((x,y)=>(y.kayip??-1)-(x.kayip??-1)||y.w-x.w);
-  const veri=rows.filter(r=>r.veri), yok=rows.filter(r=>!r.veri);
-  const hizli=veri.filter(r=>r.sonraki!=null&&r.sonraki<=3).sort((x,y)=>x.sonraki-y.sonraki);
-  const risk=veri.filter(r=>r.risk!=null&&r.risk<=1&&r.skor>=2&&r.skor<=4);
-  const rowH=r=>`<div class="row bl${r.skor}"><span class="k">${esc(r.k)}</span><span class="ad">${esc(r.ad)}</span><span class="val">${r.veri?pct(r.oran):'–'} <span class="sc s${r.skor}">${r.skor}</span></span>
-    <div class="sub"><span class="num">${r.veri?r.pay+'/'+r.payda:'veri yok'}</span><span>skala ${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</span><span>ağırlık ${r.w}</span>${r.kayip!=null?`<span>kayıp ${f2(r.kayip)}</span>`:''}${r.veri?`<span>${esc(sonrakiTxt(r))}</span>`:''}${r.risk!=null&&r.risk<=1?`<span class="dn">${esc(riskTxt(r))}</span>`:''}</div></div>`;
-  v.innerHTML=`<div class="detail">
-    ${S.mod==='ekip'?'':'<div><button class="btn" type="button" id="back">← Tüm ekipler</button></div>'}
+  const tam=S.gorunum==='tam';
+  const ust=`${S.mod==='ekip'?'':'<div><button class="btn" type="button" id="back">← Tüm ekipler</button></div>'}
     <div class="dhead"><span class="no">${e}</span><div class="kpi"><small>Ekip</small><span>${esc(isim(e))}${FIBER.includes(e)?' · fiber':''}</span></div>
       <div class="kpi"><small>PP</small><b>${f2(a.pp)}</b></div>
       <div class="kpi" style="flex:1 1 140px;min-width:120px"><small>PP gidişatı</small>${sparkline(hist,160,34)}</div>
       </div>
+    <div class="vsec" role="group" aria-label="Görünüm"><button type="button" data-dv="ozet" aria-pressed="${!tam}">Özet</button><button type="button" data-dv="tam" aria-pressed="${tam}">Tam karne</button></div>`;
+  if(tam){
+    const satir=(r,i)=>`<tr class="krow${S.acik===r.k?' on':''}" data-hk="${esc(r.k)}"><td class="num">${i+1}</td><td><b>${esc(r.k)}</b> ${esc(r.ad)}</td><td class="num">${r.veri?pct(r.oran):'–'}</td><td><span class="sc s${r.skor}">${r.skor}</span></td><td class="num">${f2(r.puan)}</td><td class="num">${r.veri?r.pay+'/'+r.payda:'–'}</td><td class="num">${String(r.w).replace('.',',')}</td><td class="num">${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</td></tr>`;
+    v.innerHTML=`<div class="detail">${ust}
+      <p class="sect">${trT(S.sel)} · tam karne · hedefe dokun, gün gün seyri açılsın</p>
+      <div class="tw"><table class="tbl kt"><thead><tr><th>#</th><th>Hedef</th><th>Oran</th><th>Skor</th><th>Puan</th><th>Pay/Payda</th><th>Ağırlık</th><th>Skala 2/3/4/5</th></tr></thead>
+      <tbody>${a.rows.map(satir).join('')}</tbody>
+      <tfoot><tr><td></td><td><b>PP</b> (index toplamı, en fazla 4,00)</td><td></td><td></td><td class="num"><b>${f2(a.pp)}</b></td><td colspan="3"></td></tr>
+      <tr><td></td><td colspan="7" class="status">Amirlik puanı (ağırlık 0,20) amir tarafından verilir, bu tabloda yer almaz. Not skalası: A ≥ 4,10 · B 3,60–4,10 · C &lt; 3,60.</td></tr></tfoot></table></div>
+    </div>`;
+    return;
+  }
+  const rows=a.rows.slice().sort((x,y)=>(y.kayip??-1)-(x.kayip??-1)||y.w-x.w);
+  const veri=rows.filter(r=>r.veri), yok=rows.filter(r=>!r.veri);
+  const hizli=veri.filter(r=>r.sonraki!=null&&r.sonraki<=3).sort((x,y)=>x.sonraki-y.sonraki);
+  const risk=veri.filter(r=>r.risk!=null&&r.risk<=1&&r.skor>=2&&r.skor<=4);
+  const rowH=r=>`<div class="row bl${r.skor}" data-hk="${esc(r.k)}" role="button" tabindex="0"><span class="k">${esc(r.k)}</span><span class="ad">${esc(r.ad)}</span><span class="val">${r.veri?pct(r.oran):'–'} <span class="sc s${r.skor}">${r.skor}</span></span>
+    <div class="sub"><span class="num">${r.veri?r.pay+'/'+r.payda:'veri yok'}</span><span>skala ${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</span><span>ağırlık ${r.w}</span>${r.kayip!=null?`<span>kayıp ${f2(r.kayip)}</span>`:''}${r.veri?`<span>${esc(sonrakiTxt(r))}</span>`:''}${r.risk!=null&&r.risk<=1?`<span class="dn">${esc(riskTxt(r))}</span>`:''}</div></div>`;
+  v.innerHTML=`<div class="detail">${ust}
     ${hizli.length?`<p class="sect">Hızlı kazanım (≤3 işle bir üst skor)</p><div class="rows">${hizli.map(rowH).join('')}</div>`:''}
     ${risk.length?`<p class="sect">Sınırda (skor 2–4, 1 olumsuz işte düşer)</p><div class="rows">${risk.map(rowH).join('')}</div>`:''}
-    <p class="sect">Tüm hedefler · kayıp puana göre</p><div class="rows">${veri.map(rowH).join('')}</div>
+    <p class="sect">Tüm hedefler · kayıp puana göre · dokun, seyri açılsın</p><div class="rows">${veri.map(rowH).join('')}</div>
     ${yok.length?`<p class="sect">Veri yok (payda 0)</p><div class="rows">${yok.map(rowH).join('')}</div>`:''}
   </div>`;
 }
@@ -647,15 +699,20 @@ $('sugg').addEventListener('click',e=>{const b=e.target.closest('button');if(b)s
 $('strip').addEventListener('click',e=>{const b=e.target.closest('[data-team]');if(b){S.team=b.dataset.team;sekme('E');}});
 $('viewE').addEventListener('click',e=>{
   if(e.target.closest('#fullBtn')){renderFull();$('full').hidden=false;return;}
-  if(e.target.closest('#back')){S.team=null;renderEkipler();return;}
+  const dv=e.target.closest('[data-dv]'); if(dv){S.gorunum=dv.dataset.dv;renderEkipler();return;}
+  const hk=e.target.closest('[data-hk]'); if(hk){gecmisAc(hk.dataset.hk);return;}
+  if(e.target.closest('#back')){S.team=null;S.acik=null;renderEkipler();return;}
   if(e.target.closest('#askTeam')){const t=S.team;sekme('A');sor(`${t} ekibinin en kötü olduğu hedefleri sırala ve detaylı analizini yap`);return;}
-  const b=e.target.closest('[data-team]');if(b){S.team=b.dataset.team;renderEkipler();window.scrollTo({top:0});}
+  const b=e.target.closest('[data-team]');if(b){S.team=b.dataset.team;S.acik=null;renderEkipler();window.scrollTo({top:0});}
 });
 $('full').addEventListener('click',e=>{
   if(e.target.closest('#fullClose')){$('full').hidden=true;return;}
   const b=e.target.closest('[data-team]');if(b){$('full').hidden=true;S.team=b.dataset.team;renderEkipler();window.scrollTo({top:0});}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('full').hidden)$('full').hidden=true;});
+$('hClose').onclick=gecmisKapat;
+$('hsheet').addEventListener('click',e=>{if(e.target.id==='hsheet')gecmisKapat();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('hsheet').hidden)gecmisKapat();});
 $('askForm').onsubmit=e=>{e.preventDefault();sor($('q').value);};
 $('q').addEventListener('input',autoSize);
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sor($('q').value);}});
