@@ -188,6 +188,7 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 .row[data-hk]:hover{border-color:var(--accent)}
 .pt tr.on td{background:var(--accent-soft)}
 .pt td{white-space:normal}
+.kazan{margin:0;padding:8px 12px;border-radius:8px;background:var(--accent-soft);color:var(--fg);font-size:13.5px}
 .login{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .lbox{width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
 .lbox img{border-radius:14px;align-self:center}
@@ -392,15 +393,17 @@ function planHesap(r,t){
   return {lv,oneri,hiz,kalan};
 }
 const isAd=r=>r.up?'başarılı':'sorunsuz';
-const oneriTxt=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan (5)':'–'; if(!p.oneri) return 'bu ay bir üst skora ulaşmak zor';
+const haftaTxt=r=>{const p=r.plan; if(!p||!(p.hiz>0)) return ''; const n=Math.max(5,Math.round(p.hiz*7)); const o=r.up?(r.pay+n)/(r.payda+n):r.pay/(r.payda+n); return `1 haftalık ${isAd(r)} işle (≈${n} iş) oran ${pct(r.oran)} → ${pct(o)}`;};
+const oneriTxt=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan (5)':'–';
+  if(!p.oneri){const ilk=p.lv.find(x=>x.k!=null); return (ilk?`uzun vadeli hedef: +${ilk.k} ${isAd(r)} iş → ${ilk.L} · `:'')+haftaTxt(r);}
   return `öneri: +${p.oneri.k} ${isAd(r)} iş → ${p.oneri.L} (+${f2(p.oneri.kaz)} puan${p.oneri.gs?', ≈'+p.oneri.gs+' gün':''})`;};
-const planKisa=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan':'–'; return p.lv.map(x=>`${x.L}:${x.k==null?'ulaşılamaz':'+'+x.k}`).join(' ')+(p.oneri?` | öneri ${p.oneri.L}`:' | bu ay zor');};
+const planKisa=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan':'–'; return p.lv.map(x=>`${x.L}:${x.k==null?'hatasız olmalı':'+'+x.k}`).join(' ')+(p.oneri?` | öneri ${p.oneri.L}`:` | uzun vadeli hedef; ${haftaTxt(r)}`);};
 function planHTML(r){
   const p=r.plan; if(!p) return r.skor===5?'<p class="status" style="margin:0">Skor zaten 5 (tavan).</p>':r.k==='NVS'?'<p class="status" style="margin:0">NVS müşteri anketi puanıdır; iş sayısıyla hesaplanamaz.</p>':'';
-  const satir=x=>`<tr${p.oneri&&p.oneri.L===x.L?' class="on"':''}><td><span class="sc s${x.L}">${x.L}</span>${p.oneri&&p.oneri.L===x.L?' <b>önerilen</b>':''}</td><td class="num">${x.k==null?'ulaşılamaz':'+'+x.k+' iş'}</td><td class="num">+${f2(x.kaz)}</td><td class="num">${x.k==null?'–':x.gs==null?'–':'≈'+x.gs+' gün'+(x.ulasir?'':' (ay yetmez)')}</td></tr>`;
+  const satir=x=>`<tr${p.oneri&&p.oneri.L===x.L?' class="on"':''}><td><span class="sc s${x.L}">${x.L}</span>${p.oneri&&p.oneri.L===x.L?' <b>önerilen</b>':''}</td><td class="num">${x.k==null?'hatasız olmalı':'+'+x.k+' iş'}</td><td class="num">+${f2(x.kaz)}</td><td class="num">${x.k==null?'–':x.gs==null?'–':'≈'+x.gs+' gün'+(x.ulasir?'':' (uzun vadeli)')}</td></tr>`;
   return `<p class="sect" style="margin:0">Yükseltme planı</p>
    <div class="tw"><table class="tbl pt"><thead><tr><th>Hedef skor</th><th>${r.up?'Başarılı':'Sorunsuz'} iş</th><th>Puan kazancı</th><th>Tahmini süre</th></tr></thead><tbody>${p.lv.map(satir).join('')}</tbody></table></div>
-   <p class="status" style="margin:0">Bundan sonraki işlerin hepsinin ${isAd(r)} olduğu varsayılır; araya giren her olumsuz iş gereken sayıyı artırır. Bu hedefte günde ortalama ${String(Math.round(p.hiz*10)/10).replace('.',',')} iş yapılıyor, ay sonuna ${p.kalan} gün var.${p.oneri?` Önerilen seviye, iş başına en çok puan getiren ve bu ay yetişebilecek en yüksek seviyedir.`:''}</p>`;
+   <p class="status" style="margin:0">Bundan sonraki işlerin hepsinin ${isAd(r)} olduğu varsayılır; araya giren her olumsuz iş gereken sayıyı artırır. Bu hedefte günde ortalama ${String(Math.round(p.hiz*10)/10).replace('.',',')} iş yapılıyor, ay sonuna ${p.kalan} gün var.${p.oneri?` Önerilen seviye, iş başına en çok puan getiren ve bu ay yetişebilecek en yüksek seviyedir.`:''}</p>${p.oneri?'':`<p class="kazan">Her ${isAd(r)} iş oranı iyileştirir, her olumsuz iş hedefi uzaklaştırır. ${esc(haftaTxt(r))}.</p>`}`;
 }
 
 // ---------- AI veri bloğu ----------
