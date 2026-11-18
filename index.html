@@ -186,6 +186,8 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 .kh .tbl td,.kh .tbl th{font-size:12px;padding:4px 8px}
 .row[data-hk]{cursor:pointer}
 .row[data-hk]:hover{border-color:var(--accent)}
+.pt tr.on td{background:var(--accent-soft)}
+.pt td{white-space:normal}
 .login{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .lbox{width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
 .lbox img{border-radius:14px;align-self:center}
@@ -363,6 +365,7 @@ function ekipAnaliz(gun,e){
     if(veri&&skor>=2) risk=dusme(up,sk[skor-2],pay,payda);
     return {k,ad:h.ad,w,sk,up,pay,payda,oran,skor,puan,veri,kayip,sonraki,risk};
   });
+  rows.forEach(r=>r.plan=planHesap(r,gun.tarih));
   return {...t,rows};
 }
 function skorBul(up,sk,o){let s=1;for(let i=0;i<4;i++){if(up?o>=sk[i]-1e-9:o<=sk[i]+1e-9)s=i+2;}return s;}
@@ -371,6 +374,34 @@ const sonrakiTxt=r=>r.sonraki==null?(r.skor===5?'tavan (5)':'–'):`+${r.sonraki
 const riskTxt=r=>r.risk==null?'–':`${r.risk} ${r.up?'başarısız':'sorunlu'} işte → ${sonSkor(r,r.risk,false)}`;
 const skalaTxt=sk=>sk.map(v=>v<=1.5?(v*100).toFixed(1).replace('.0',''):v).join('/')+(sk[0]<=1.5?'%':'');
 function oncekiGun(t){const g=gunler();const i=g.indexOf(t);return i>0?g[i-1]:null;}
+
+// ---------- yükseltme planı ----------
+function ayBilgi(t){const y=+t.slice(0,4),m=+t.slice(5,7),d=+t.slice(8,10);return {gun:d,kalan:new Date(y,m,0).getDate()-d};}
+function planHesap(r,t){
+  if(!r.veri||r.skor<1||r.skor>=5||!t||r.k==='NVS') return null;
+  const {gun,kalan}=ayBilgi(t); const hiz=gun>0?r.payda/gun:0;
+  const lv=[];
+  for(let L=r.skor+1;L<=5;L++){
+    const k=gerekli(r.up,r.sk[L-2],r.pay,r.payda);
+    const kaz=Math.round(r.w*(L-r.skor)*100)/100;
+    const gs=k==null?null:(hiz>0?Math.max(1,Math.ceil(k/hiz)):null);
+    lv.push({L,k,kaz,gs,ulasir:k!=null&&k>0&&gs!=null&&gs<=kalan});
+  }
+  const uy=lv.filter(x=>x.ulasir); let oneri=null;
+  if(uy.length){const en=Math.max(...uy.map(x=>x.kaz/x.k)); oneri=uy.filter(x=>x.kaz/x.k>=en*0.75).pop();}
+  return {lv,oneri,hiz,kalan};
+}
+const isAd=r=>r.up?'başarılı':'sorunsuz';
+const oneriTxt=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan (5)':'–'; if(!p.oneri) return 'bu ay bir üst skora ulaşmak zor';
+  return `öneri: +${p.oneri.k} ${isAd(r)} iş → ${p.oneri.L} (+${f2(p.oneri.kaz)} puan${p.oneri.gs?', ≈'+p.oneri.gs+' gün':''})`;};
+const planKisa=r=>{const p=r.plan; if(!p) return r.skor===5?'tavan':'–'; return p.lv.map(x=>`${x.L}:${x.k==null?'ulaşılamaz':'+'+x.k}`).join(' ')+(p.oneri?` | öneri ${p.oneri.L}`:' | bu ay zor');};
+function planHTML(r){
+  const p=r.plan; if(!p) return r.skor===5?'<p class="status" style="margin:0">Skor zaten 5 (tavan).</p>':r.k==='NVS'?'<p class="status" style="margin:0">NVS müşteri anketi puanıdır; iş sayısıyla hesaplanamaz.</p>':'';
+  const satir=x=>`<tr${p.oneri&&p.oneri.L===x.L?' class="on"':''}><td><span class="sc s${x.L}">${x.L}</span>${p.oneri&&p.oneri.L===x.L?' <b>önerilen</b>':''}</td><td class="num">${x.k==null?'ulaşılamaz':'+'+x.k+' iş'}</td><td class="num">+${f2(x.kaz)}</td><td class="num">${x.k==null?'–':x.gs==null?'–':'≈'+x.gs+' gün'+(x.ulasir?'':' (ay yetmez)')}</td></tr>`;
+  return `<p class="sect" style="margin:0">Yükseltme planı</p>
+   <div class="tw"><table class="tbl pt"><thead><tr><th>Hedef skor</th><th>${r.up?'Başarılı':'Sorunsuz'} iş</th><th>Puan kazancı</th><th>Tahmini süre</th></tr></thead><tbody>${p.lv.map(satir).join('')}</tbody></table></div>
+   <p class="status" style="margin:0">Bundan sonraki işlerin hepsinin ${isAd(r)} olduğu varsayılır; araya giren her olumsuz iş gereken sayıyı artırır. Bu hedefte günde ortalama ${String(Math.round(p.hiz*10)/10).replace('.',',')} iş yapılıyor, ay sonuna ${p.kalan} gün var.${p.oneri?` Önerilen seviye, iş başına en çok puan getiren ve bu ay yetişebilecek en yüksek seviyedir.`:''}</p>`;
+}
 
 // ---------- AI veri bloğu ----------
 function veriBlogu(t){
@@ -382,8 +413,8 @@ function veriBlogu(t){
   for(const e of Object.keys(gun.ekipler).sort()){
     const a=ekipAnaliz(gun,e);
     out.push(`\nEKİP ${e} (${isim(e)||'-'}${FIBER.includes(e)?', fiber':''}) — PP ${f2(a.pp)}`);
-    out.push('kod|ağırlık|pay/payda|oran|skor|puan|kayıp|bir üst skor için|düşme riski');
-    for(const r of a.rows) out.push(r.veri?`${r.k}|${r.w}|${r.pay}/${r.payda}|${pct(r.oran)}|${r.skor}|${f2(r.puan)}|${f2(r.kayip)}|${sonrakiTxt(r)}|${riskTxt(r)}`:`${r.k}|${r.w}|veri yok|–|${r.skor}|${f2(r.puan)}|–|–|–`);
+    out.push('kod|ağırlık|pay/payda|oran|skor|puan|kayıp|yükseltme planı (hedef skor:gereken iş)|düşme riski');
+    for(const r of a.rows) out.push(r.veri?`${r.k}|${r.w}|${r.pay}/${r.payda}|${pct(r.oran)}|${r.skor}|${f2(r.puan)}|${f2(r.kayip)}|${planKisa(r)}|${riskTxt(r)}`:`${r.k}|${r.w}|veri yok|–|${r.skor}|${f2(r.puan)}|–|–|–`);
   }
   const dg=degisim(t); if(dg){out.push(`\nDÜNDEN BUGÜNE OLUMSUZ DEĞİŞİM (${kisa(dg.dun)} → ${kisa(t)}; uyum/tamamlanma hedeflerinde hedef dışı iş = payda−pay artışı, arıza/backlog hedeflerinde yeni kayıt = pay artışı):`);
     for(const o of dg.hedefler) out.push(`${o.k} ${KISA[o.k]||o.ad} | +${o.tot} ${o.up?'hedef dışı iş':'yeni kayıt'} | ${o.by.map(([e,n])=>e+': '+n).join(', ')} | TM oranı ${pct(o.yo)} → ${pct(o.to)}${o.kotu?' (kötüleşti)':''}`);
@@ -420,7 +451,7 @@ const ARACLAR=[
      const gun=S.days[d]; uyari(`${kisa(d)} tablosuna bakıyor`);
      if(!inp.ekip) return Object.keys(gun.ekipler).sort().map(e=>({ekip:e,pp:gun.ekipler[e].pp}));
      const e=String(inp.ekip).replace(/\D/g,'').slice(-3); const a=ekipAnaliz(gun,e); if(!a) throw new Error('Ekip yok');
-     return {tarih:kisa(d),ekip:e,pp:a.pp,hedefler:a.rows.map(r=>({k:r.k,pay:r.pay,payda:r.payda,oran:r.veri?pct(r.oran):'veri yok',skor:r.skor,puan:r.puan,kayip:r.kayip,ust:sonrakiTxt(r),risk:riskTxt(r)}))};
+     return {tarih:kisa(d),ekip:e,pp:a.pp,hedefler:a.rows.map(r=>({k:r.k,pay:r.pay,payda:r.payda,oran:r.veri?pct(r.oran):'veri yok',skor:r.skor,puan:r.puan,kayip:r.kayip,plan:planKisa(r),risk:riskTxt(r)}))};
    }}
 ];
 
@@ -528,7 +559,7 @@ function gecmisHTML(e,r){
   let ch='';
   if(v.length>1){const n=grafikCiz({tip:'cizgi',baslik:`${r.k} oranı · ay başından`,x:v.map(x=>kisa(x.t)),seriler:[{ad:'Oran',degerler:v.map(x=>Math.round(x.oran*1000)/10)}],birim:'%'}); if(n) ch=n.outerHTML;}
   const tab=`<div class="tw"><table class="tbl"><thead><tr><th>Tarih</th><th>Pay/Payda</th><th>Oran</th><th>Skor</th><th>Puan</th></tr></thead><tbody>${h.slice().reverse().map(x=>`<tr><td class="num">${kisa(x.t)}</td><td class="num">${x.payda>0?x.pay+'/'+x.payda:'veri yok'}</td><td class="num">${x.payda>0?pct(x.oran):'–'}</td><td><span class="sc s${x.skor}">${x.skor}</span></td><td class="num">${f2(x.puan)}</td></tr>`).join('')}</tbody></table></div>`;
-  const not=r.veri?`<p class="status" style="margin:0">Skala ${esc(skalaTxt(r.sk))} (${r.up?'yüksek iyi':'düşük iyi'}) · ${esc(sonrakiTxt(r))}${r.risk!=null?' · '+esc(riskTxt(r)):''}</p>`:'<p class="status" style="margin:0">Bu gün için veri yok.</p>';
+  const not=r.veri?`<p class="status" style="margin:0">Skala ${esc(skalaTxt(r.sk))} (${r.up?'yüksek iyi':'düşük iyi'})${r.risk!=null?' · '+esc(riskTxt(r)):''}</p>`+planHTML(r):'<p class="status" style="margin:0">Bu gün için veri yok.</p>';
   return `<div class="kh">${not}${ch}${tab}</div>`;
 }
 function gecmisAc(k){
@@ -550,24 +581,24 @@ function renderDetay(v,gun,e){
       </div>
     <div class="vsec" role="group" aria-label="Görünüm"><button type="button" data-dv="ozet" aria-pressed="${!tam}">Özet</button><button type="button" data-dv="tam" aria-pressed="${tam}">Tam karne</button></div>`;
   if(tam){
-    const satir=(r,i)=>`<tr class="krow${S.acik===r.k?' on':''}" data-hk="${esc(r.k)}"><td class="num">${i+1}</td><td><b>${esc(r.k)}</b> ${esc(r.ad)}</td><td class="num">${r.veri?pct(r.oran):'–'}</td><td><span class="sc s${r.skor}">${r.skor}</span></td><td class="num">${f2(r.puan)}</td><td class="num">${r.veri?r.pay+'/'+r.payda:'–'}</td><td class="num">${String(r.w).replace('.',',')}</td><td class="num">${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</td></tr>`;
+    const satir=(r,i)=>`<tr class="krow${S.acik===r.k?' on':''}" data-hk="${esc(r.k)}"><td class="num">${i+1}</td><td><b>${esc(r.k)}</b> ${esc(r.ad)}</td><td class="num">${r.veri?pct(r.oran):'–'}</td><td><span class="sc s${r.skor}">${r.skor}</span></td><td class="num">${f2(r.puan)}</td><td class="num">${r.plan&&r.plan.oneri?'+'+r.plan.oneri.k+' → '+r.plan.oneri.L:(r.skor===5?'tavan':'–')}</td><td class="num">${r.veri?r.pay+'/'+r.payda:'–'}</td><td class="num">${String(r.w).replace('.',',')}</td><td class="num">${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</td></tr>`;
     v.innerHTML=`<div class="detail">${ust}
       <p class="sect">${trT(S.sel)} · tam karne · hedefe dokun, gün gün seyri açılsın</p>
-      <div class="tw"><table class="tbl kt"><thead><tr><th>#</th><th>Hedef</th><th>Oran</th><th>Skor</th><th>Puan</th><th>Pay/Payda</th><th>Ağırlık</th><th>Skala 2/3/4/5</th></tr></thead>
+      <div class="tw"><table class="tbl kt"><thead><tr><th>#</th><th>Hedef</th><th>Oran</th><th>Skor</th><th>Puan</th><th>Öneri</th><th>Pay/Payda</th><th>Ağırlık</th><th>Skala 2/3/4/5</th></tr></thead>
       <tbody>${a.rows.map(satir).join('')}</tbody>
-      <tfoot><tr><td></td><td><b>PP</b> (index toplamı, en fazla 4,00)</td><td></td><td></td><td class="num"><b>${f2(a.pp)}</b></td><td colspan="3"></td></tr>
-      <tr><td></td><td colspan="7" class="status">Amirlik puanı (ağırlık 0,20) amir tarafından verilir, bu tabloda yer almaz. Not skalası: A ≥ 4,10 · B 3,60–4,10 · C &lt; 3,60.</td></tr></tfoot></table></div>
+      <tfoot><tr><td></td><td><b>PP</b> (index toplamı, en fazla 4,00)</td><td></td><td></td><td class="num"><b>${f2(a.pp)}</b></td><td colspan="4"></td></tr>
+      <tr><td></td><td colspan="8" class="status">Amirlik puanı (ağırlık 0,20) amir tarafından verilir, bu tabloda yer almaz. Not skalası: A ≥ 4,10 · B 3,60–4,10 · C &lt; 3,60.</td></tr></tfoot></table></div>
     </div>`;
     return;
   }
   const rows=a.rows.slice().sort((x,y)=>(y.kayip??-1)-(x.kayip??-1)||y.w-x.w);
   const veri=rows.filter(r=>r.veri), yok=rows.filter(r=>!r.veri);
-  const hizli=veri.filter(r=>r.sonraki!=null&&r.sonraki<=3).sort((x,y)=>x.sonraki-y.sonraki);
+  const hizli=veri.filter(r=>r.plan&&r.plan.oneri).sort((x,y)=>y.plan.oneri.kaz/y.plan.oneri.k-x.plan.oneri.kaz/x.plan.oneri.k).slice(0,5);
   const risk=veri.filter(r=>r.risk!=null&&r.risk<=1&&r.skor>=2&&r.skor<=4);
   const rowH=r=>`<div class="row bl${r.skor}" data-hk="${esc(r.k)}" role="button" tabindex="0"><span class="k">${esc(r.k)}</span><span class="ad">${esc(r.ad)}</span><span class="val">${r.veri?pct(r.oran):'–'} <span class="sc s${r.skor}">${r.skor}</span></span>
-    <div class="sub"><span class="num">${r.veri?r.pay+'/'+r.payda:'veri yok'}</span><span>skala ${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</span><span>ağırlık ${r.w}</span>${r.kayip!=null?`<span>kayıp ${f2(r.kayip)}</span>`:''}${r.veri?`<span>${esc(sonrakiTxt(r))}</span>`:''}${r.risk!=null&&r.risk<=1?`<span class="dn">${esc(riskTxt(r))}</span>`:''}</div></div>`;
+    <div class="sub"><span class="num">${r.veri?r.pay+'/'+r.payda:'veri yok'}</span><span>skala ${esc(skalaTxt(r.sk))} ${r.up?'↑':'↓'}</span><span>ağırlık ${r.w}</span>${r.kayip!=null?`<span>kayıp ${f2(r.kayip)}</span>`:''}${r.veri?`<span>${esc(oneriTxt(r))}</span>`:''}${r.risk!=null&&r.risk<=1?`<span class="dn">${esc(riskTxt(r))}</span>`:''}</div></div>`;
   v.innerHTML=`<div class="detail">${ust}
-    ${hizli.length?`<p class="sect">Hızlı kazanım (≤3 işle bir üst skor)</p><div class="rows">${hizli.map(rowH).join('')}</div>`:''}
+    ${hizli.length?`<p class="sect">Öncelik · iş başına en çok puan getiren 5 hedef</p><div class="rows">${hizli.map(rowH).join('')}</div>`:''}
     ${risk.length?`<p class="sect">Sınırda (skor 2–4, 1 olumsuz işte düşer)</p><div class="rows">${risk.map(rowH).join('')}</div>`:''}
     <p class="sect">Tüm hedefler · kayıp puana göre · dokun, seyri açılsın</p><div class="rows">${veri.map(rowH).join('')}</div>
     ${yok.length?`<p class="sect">Veri yok (payda 0)</p><div class="rows">${yok.map(rowH).join('')}</div>`:''}
