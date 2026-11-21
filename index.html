@@ -615,31 +615,36 @@ function renderDetay(v,gun,e){
 
 // ---------- eksik veriyi önceki günden tamamla ----------
 // Sistem kaynaklı toplu boşluk: bir hedef, dün verisi olan ekiplerin en az %75'inde bugün boş (payda 0/boş) geldiyse
-// aynı ay içindeki bir önceki günün değeri kullanılır (en fazla 3 gün üst üste) ve PP yeniden hesaplanır. Ayın 1'i kaynak sayılmaz.
+// aynı ay içindeki bir önceki günün değeri kullanılır ve PP yeniden hesaplanır. Taşıma, veri geri gelene kadar sürer.
+// Taşımanın başlaması için değerin en az 2 gün üst üste gerçek veri olarak gelmiş olması gerekir. Ayın 1'i kaynak sayılmaz.
 function tamamlaGunler(days){
-  const out={}; let onceki=null;
+  const out={}; let onceki=null, onceki2=null;
   for(const t of Object.keys(days).sort()){
     const g=days[t]; const yeni={...g,ekipler:{},tasinan:{}};
-    const uygun=!!onceki&&onceki.tarih.slice(0,7)===t.slice(0,7)&&onceki.tarih.slice(8,10)!=='01';
+    const ay=x=>!!x&&x.tarih.slice(0,7)===t.slice(0,7);
+    const uygun=ay(onceki)&&onceki.tarih.slice(8,10)!=='01';
+    const o2=ay(onceki2)?onceki2:null;
+    const bul=(d,e,k)=>d&&d.ekipler[e]&&d.ekipler[e].r.find(y=>y[0]===k);
     const toplu=new Set();
     if(uygun) for(const k of Object.keys(g.hedefler||{})){
       let var_=0,bos=0;
-      for(const e of Object.keys(g.ekipler)){const p=onceki.ekipler[e]&&onceki.ekipler[e].r.find(y=>y[0]===k); if(!p||!(p[3]>0)) continue; var_++; const r=g.ekipler[e].r.find(y=>y[0]===k); if(!r||!(r[3]>0)) bos++;}
+      for(const e of Object.keys(g.ekipler)){const p=bul(onceki,e,k); if(!p||!(p[3]>0)) continue; var_++; const r=bul(g,e,k); if(!r||!(r[3]>0)) bos++;}
       if(var_>0&&bos/var_>=0.75) toplu.add(k);
     }
     for(const [e,x] of Object.entries(g.ekipler)){
       let pp=x.pp; const list=[];
       const r=x.r.map(row=>{
         if(row[3]>0||!toplu.has(row[0])) return row;
-        const p=onceki.ekipler[e]&&onceki.ekipler[e].r.find(y=>y[0]===row[0]);
-        if(!p||!(p[3]>0)||(p[7]||0)>=3) return row;
+        const p=bul(onceki,e,row[0]);
+        if(!p||!(p[3]>0)) return row;
+        if(!p[7]){const p2=bul(o2,e,row[0]); if(!p2||!(p2[3]>0)) return row;}
         pp=(pp||0)+(p[6]||0)-(row[6]||0); list.push(row[0]);
         return [p[0],p[1],p[2],p[3],p[4],p[5],p[6],(p[7]||0)+1];
       });
       yeni.ekipler[e]={...x,r,pp:pp==null?null:Math.round(pp*1e4)/1e4,ppHam:x.pp};
       if(list.length) yeni.tasinan[e]=list;
     }
-    out[t]=yeni; onceki=yeni;
+    out[t]=yeni; onceki2=onceki; onceki=yeni;
   }
   return out;
 }
