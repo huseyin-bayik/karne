@@ -437,7 +437,7 @@ function planHTML(r){
 // ---------- araç takip ----------
 const GUNAD=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 const TL0=300, TL1=1380; // zaman çizelgesi 05:00–23:00
-const GEC_DK=525, ERKEN_DK=1020; // 08:45'ten sonra açılış = geç (kırmızı), 17:00'den önce kapanış = erken (turuncu)
+const GEC_DK=525, ERKEN_DK=1050; // 08:45'ten sonra açılış = geç (kırmızı), 17:30'dan önce kapanış = erken (turuncu)
 const saatHTML=x=>`<span class="saat"><span class="${x.gec?'k-gec':''}">${dkTxt(x.i)}</span>–<span class="${x.erken?'k-erken':''}">${dkTxt(x.s)}</span></span>`;
 function saatDk(s){if(!s) return null; const m=String(s).match(/^(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null;}
 const dkTxt=d=>d==null?'–':String(Math.floor(d/60)).padStart(2,'0')+':'+String(Math.round(d%60)).padStart(2,'0');
@@ -471,10 +471,10 @@ function renderArac(){
       <div class="lhead"><p class="sect">Araç takip · haftalık kontak</p>${sec}</div>
       ${S.mod==='ekip'?'':'<div><button class="btn" type="button" data-aracgeri="1">← Tüm araçlar</button></div>'}
       <div class="dhead"><span class="no">${esc(tek.ekip||'?')}</span><div class="kpi"><small>Plaka</small><b>${esc(tek.plaka)}</b></div><div class="kpi"><small>Kullanıcı</small><span>${esc(tek.kisi)}</span></div></div>
-      <div class="akpi"><div class="kpi"><small>Ort. ilk kontak</small><b>${dkTxt(o.ortI)}</b></div><div class="kpi"><small>Ort. son kontak</small><b>${dkTxt(o.ortS)}</b></div><div class="kpi"><small>Ort. kullanım</small><b>${sureTxt(o.ortSure)}</b></div><div class="kpi"><small>Kullanılan gün</small><b>${o.gun}/${H.gunler.length}</b></div><div class="kpi"><small>Geç çıkış (08:45 sonrası)</small><b class="${o.gec?'k-gec':''}">${o.gec} gün</b></div><div class="kpi"><small>Erken dönüş (17:00 öncesi)</small><b class="${o.erken?'k-erken':''}">${o.erken} gün</b></div></div>
+      <div class="akpi"><div class="kpi"><small>Ort. ilk kontak</small><b>${dkTxt(o.ortI)}</b></div><div class="kpi"><small>Ort. son kontak</small><b>${dkTxt(o.ortS)}</b></div><div class="kpi"><small>Ort. kullanım</small><b>${sureTxt(o.ortSure)}</b></div><div class="kpi"><small>Kullanılan gün</small><b>${o.gun}/${H.gunler.length}</b></div><div class="kpi"><small>Geç çıkış (08:45 sonrası)</small><b class="${o.gec?'k-gec':''}">${o.gec} gün</b></div><div class="kpi"><small>Erken dönüş (17:30 öncesi)</small><b class="${o.erken?'k-erken':''}">${o.erken} gün</b></div></div>
       <div class="arows"><div class="arow ahead"><span></span><span class="tl-olcek"><b style="left:${(480-TL0)/(TL1-TL0)*100}%">08</b><b style="left:${(720-TL0)/(TL1-TL0)*100}%">12</b><b style="left:${(1020-TL0)/(TL1-TL0)*100}%">17</b></span><span></span></div>
       ${o.v.map(x=>`<div class="arow"><span class="ag">${gunEt(x.t)}</span>${zamanCubuk(x)}<span class="at num">${x.i==null&&x.s==null?'–':saatHTML(x)}<small>${x.sure!=null?sureTxt(x.sure):''}${x.disi?' · mesai dışı':''}${x.gec?' · <b class="k-gec">geç çıkış</b>':''}${x.erken?' · <b class="k-erken">erken dönüş</b>':''}</small></span></div>`).join('')}</div>
-      <p class="status">Saatler araç takip sistemindeki ilk kontak açma ve son kontak kapama kayıtlarıdır. Aradaki süre aracın gün içindeki kullanım aralığını gösterir; kesintisiz sürüş anlamına gelmez. <span class="k-gec">Kırmızı</span>: 08:45'ten sonra kontak açma. <span class="k-erken">Turuncu</span>: 17:00'den önce kontak kapama. <span class="k-disi">Mor</span>: 06:00 öncesi ya da 20:00 sonrası kontak (mesai dışı); ortalamalara katılmaz.</p>
+      <p class="status">Saatler araç takip sistemindeki ilk kontak açma ve son kontak kapama kayıtlarıdır. Aradaki süre aracın gün içindeki kullanım aralığını gösterir; kesintisiz sürüş anlamına gelmez. <span class="k-gec">Kırmızı</span>: 08:45'ten sonra kontak açma. <span class="k-erken">Turuncu</span>: 17:30'dan önce kontak kapama. <span class="k-disi">Mor</span>: 06:00 öncesi ya da 20:00 sonrası kontak (mesai dışı); ortalamalara katılmaz.</p>
     </div>`;
     return;
   }
@@ -483,7 +483,7 @@ function renderArac(){
   v.innerHTML=`<div class="detail"><div class="lhead"><p class="sect">Araç takip · Çallı · ${araclar.length} araç</p>${sec}</div>
     <div class="tw"><table class="tbl kt atbl"><thead><tr><th>Ekip</th><th>Ort. ilk</th><th>Ort. son</th><th>Ort. kullanım</th><th>Gün</th><th>Geç çıkış</th><th>Erken dönüş</th><th>Mesai dışı</th><th>Plaka</th><th>Kullanıcı</th></tr></thead><tbody>${araclar.map(satir).join('')}</tbody></table></div>
     <p class="sect">Gün gün ilk / son kontak</p>${gridH}
-    <p class="status">Bir satıra dokun, o aracın haftalık ayrıntısı açılsın. <span class="k-gec">Kırmızı</span>: 08:45'ten sonra kontak açma (geç çıkış). <span class="k-erken">Turuncu</span>: 17:00'den önce kontak kapama (erken dönüş). <span class="k-disi">Mor</span>: 06:00 öncesi ya da 20:00 sonrası (mesai dışı); ortalamalara katılmaz.</p></div>`;
+    <p class="status">Bir satıra dokun, o aracın haftalık ayrıntısı açılsın. <span class="k-gec">Kırmızı</span>: 08:45'ten sonra kontak açma (geç çıkış). <span class="k-erken">Turuncu</span>: 17:30'dan önce kontak kapama (erken dönüş). <span class="k-disi">Mor</span>: 06:00 öncesi ya da 20:00 sonrası (mesai dışı); ortalamalara katılmaz.</p></div>`;
 }
 
 // ---------- AI veri bloğu ----------
@@ -504,7 +504,7 @@ function veriBlogu(t){
     for(const o of dg.hedefler) out.push(`${o.k} ${KISA[o.k]||o.ad} | +${o.tot} ${o.up?'hedef dışı iş':'yeni kayıt'} | ${o.by.map(([e,n])=>e+': '+n).join(', ')} | TM oranı ${pct(o.yo)} → ${pct(o.to)}${o.kotu?' (kötüleşti)':''}`);
     if(dg.nvs.length) out.push('NVS puanı düşen: '+dg.nvs.map(([e,n])=>e+' (−'+n+')').join(', '));
     out.push('Ekip toplamları (backlog hariç): '+dg.ekipler.map(([e,n])=>e+': '+n).join(', '));}
-  {const hs=Object.keys(S.arac||{}).sort(); if(hs.length){const H=S.arac[hs[hs.length-1]]; out.push(`\nARAÇ TAKİP (${trT(H.hafta)}–${trT(H.bitis)}, ilk kontak açma / son kontak kapama; 06:00 öncesi ve 20:00 sonrası mesai dışı):`); for(const a of H.araclar){const o=aracOzet(a,H.gunler); out.push(`${a.ekip||'?'} ${a.plaka}: ort. ilk ${dkTxt(o.ortI)}, ort. son ${dkTxt(o.ortS)}, ort. kullanım ${sureTxt(o.ortSure)}, ${o.gun}/${H.gunler.length} gün, geç çıkış (08:45 sonrası) ${o.gec} gün, erken dönüş (17:00 öncesi) ${o.erken} gün, mesai dışı ${o.disi} | `+H.gunler.map(t=>{const x=a.g[t]||[];return kisa(t)+' '+(x[0]||'-')+'-'+(x[1]||'-');}).join(', '));}}}
+  {const hs=Object.keys(S.arac||{}).sort(); if(hs.length){const H=S.arac[hs[hs.length-1]]; out.push(`\nARAÇ TAKİP (${trT(H.hafta)}–${trT(H.bitis)}, ilk kontak açma / son kontak kapama; 06:00 öncesi ve 20:00 sonrası mesai dışı):`); for(const a of H.araclar){const o=aracOzet(a,H.gunler); out.push(`${a.ekip||'?'} ${a.plaka}: ort. ilk ${dkTxt(o.ortI)}, ort. son ${dkTxt(o.ortS)}, ort. kullanım ${sureTxt(o.ortSure)}, ${o.gun}/${H.gunler.length} gün, geç çıkış (08:45 sonrası) ${o.gec} gün, erken dönüş (17:30 öncesi) ${o.erken} gün, mesai dışı ${o.disi} | `+H.gunler.map(t=>{const x=a.g[t]||[];return kisa(t)+' '+(x[0]||'-')+'-'+(x[1]||'-');}).join(', '));}}}
   out.push('\nPP GEÇMİŞİ:');
   const ekipler=Object.keys(gun.ekipler).sort();
   out.push('tarih|'+ekipler.join('|'));
