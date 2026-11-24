@@ -191,6 +191,25 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 .kazan{margin:0;padding:8px 12px;border-radius:8px;background:var(--accent-soft);color:var(--fg);font-size:13.5px}
 .uyari{margin:0 0 4px;padding:9px 12px;border-radius:8px;background:var(--accent-soft);color:var(--fg);font-size:13.5px;border:1px solid var(--line)}
 .tas{color:var(--accent);font-weight:600;font-size:12px}
+.akpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+@media (max-width:520px){.akpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.akpi b{font-size:17px}
+.arows{display:flex;flex-direction:column;gap:6px}
+.arow{display:grid;grid-template-columns:72px minmax(0,1fr) 112px;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.arow.ahead{background:transparent;border:0;padding:0 10px}
+.arow .ag{font-size:13px;font-weight:600}
+.arow .at{text-align:right;font-size:13px;display:flex;flex-direction:column;line-height:1.3}
+.arow .at small{color:var(--muted);font-family:var(--f-ui);font-size:11.5px}
+.tl{position:relative;height:14px;background:var(--sunk);border-radius:7px}
+.tl i{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.tl-bar{position:absolute;top:2px;bottom:2px;border-radius:5px;background:var(--accent)}
+.tl-bar.disi{background:var(--s1)}
+.tl-bos{position:absolute;left:8px;top:-1px;font-size:11px;color:var(--muted)}
+.tl-olcek{position:relative;height:14px}
+.tl-olcek b{position:absolute;transform:translateX(-50%);font-family:var(--f-num);font-size:11px;font-weight:500;color:var(--muted)}
+.atbl td:nth-child(2){min-width:0;white-space:nowrap}
+.agrid td,.agrid th{font-size:12px;line-height:1.35;text-align:center}
+.agrid td.disi{color:var(--s1);font-weight:600}
 .login{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .lbox{width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
 .lbox img{border-radius:14px;align-self:center}
@@ -230,6 +249,7 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
       <button id="tabA" role="tab" aria-selected="false" type="button" hidden>Asistan</button>
       <button id="tabD" role="tab" aria-selected="false" type="button">Değişim</button>
       <button id="tabE" role="tab" aria-selected="true" type="button">Ekipler</button>
+      <button id="tabR" role="tab" aria-selected="false" type="button">Araç</button>
     </div>
   </header>
   <div id="status" class="status" hidden></div>
@@ -251,6 +271,7 @@ select.day{background:var(--panel);border:1px solid var(--line);border-radius:8p
 
   <section id="viewD" hidden></section>
   <section id="viewE"></section>
+  <section id="viewR" hidden></section>
 </div>
 
 <div class="full" id="full" hidden></div>
@@ -409,6 +430,56 @@ function planHTML(r){
    <p class="status" style="margin:0">Bundan sonraki işlerin hepsinin ${isAd(r)} olduğu varsayılır; araya giren her olumsuz iş gereken sayıyı artırır. Bu hedefte günde ortalama ${String(Math.round(p.hiz*10)/10).replace('.',',')} iş yapılıyor, ay sonuna ${p.kalan} gün var.${p.oneri?` Önerilen seviye, iş başına en çok puan getiren ve bu ay yetişebilecek en yüksek seviyedir.`:''}</p>${p.oneri?'':`<p class="kazan">Her ${isAd(r)} iş oranı iyileştirir, her olumsuz iş hedefi uzaklaştırır. ${esc(haftaTxt(r))}.</p>`}`;
 }
 
+// ---------- araç takip ----------
+const GUNAD=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+const TL0=300, TL1=1380; // zaman çizelgesi 05:00–23:00
+function saatDk(s){if(!s) return null; const m=String(s).match(/^(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null;}
+const dkTxt=d=>d==null?'–':String(Math.floor(d/60)).padStart(2,'0')+':'+String(Math.round(d%60)).padStart(2,'0');
+const sureTxt=d=>d==null?'–':Math.floor(d/60)+' sa '+String(Math.round(d%60)).padStart(2,'0')+' dk';
+const gunEt=t=>{const d=new Date(t+'T12:00:00');return GUNAD[d.getDay()]+' '+kisa(t);};
+const aracHaftalar=()=>Object.keys(S.arac||{}).sort();
+function aracOzet(a,gunlerL){
+  const v=gunlerL.map(t=>{const x=a.g[t]||[]; const i=saatDk(x[0]), s=saatDk(x[1]);
+    const sure=(i!=null&&s!=null&&s>i)?s-i:null; return {t,i,s,sure,disi:(i!=null&&i<360)||(s!=null&&s>1200)};});
+  const kul=v.filter(x=>x.sure!=null); let ok=kul.filter(x=>!x.disi); if(!ok.length) ok=kul; const ort=k=>ok.length?ok.reduce((p,x)=>p+x[k],0)/ok.length:null;
+  return {v,gun:kul.length,ortI:ort('i'),ortS:ort('s'),ortSure:ort('sure'),disi:v.filter(x=>x.disi).length};
+}
+function zamanCubuk(x){
+  if(x.i==null&&x.s==null) return '<div class="tl"><span class="tl-bos">kontak yok</span></div>';
+  const kl=m=>Math.min(TL1,Math.max(TL0,m)); const i=x.i??x.s, s=x.s??x.i; const a=kl(Math.min(i,s)), b=kl(Math.max(i,s));
+  const L=(a-TL0)/(TL1-TL0)*100, W=Math.max(1.5,(b-a)/(TL1-TL0)*100);
+  const tick=h=>`<i style="left:${(h*60-TL0)/(TL1-TL0)*100}%"></i>`;
+  return `<div class="tl">${[8,12,17].map(tick).join('')}<span class="tl-bar${x.disi?' disi':''}" style="left:${L}%;width:${W}%"></span></div>`;
+}
+function renderArac(){
+  const v=$('viewR'); const hs=aracHaftalar();
+  if(!hs.length){v.innerHTML=`<div class="empty">${S.loaded?'Henüz araç takip raporu yüklenmedi.':'Veriler yükleniyor…'}</div>`;return;}
+  if(!S.hafta||!S.arac[S.hafta]) S.hafta=hs[hs.length-1];
+  const H=S.arac[S.hafta]; const sec=`<select class="day" id="haftaSel" aria-label="Hafta seç">${hs.slice().reverse().map(h=>`<option value="${h}"${h===S.hafta?' selected':''}>${kisa(S.arac[h].hafta)}–${trT(S.arac[h].bitis)}</option>`).join('')}</select>`;
+  const araclar=H.araclar.filter(a=>S.mod!=='ekip'||a.ekip===S.ekip);
+  const tek=S.mod==='ekip'?araclar[0]:araclar.find(a=>a.plaka===S.aracSec);
+  if(!araclar.length){v.innerHTML=`<div class="lhead"><p class="sect">Araç takip</p>${sec}</div><div class="empty">Bu haftanın raporunda ekibine ait araç bulunamadı.</div>`;return;}
+  if(tek){
+    const o=aracOzet(tek,H.gunler);
+    v.innerHTML=`<div class="detail">
+      <div class="lhead"><p class="sect">Araç takip · haftalık kontak</p>${sec}</div>
+      ${S.mod==='ekip'?'':'<div><button class="btn" type="button" data-aracgeri="1">← Tüm araçlar</button></div>'}
+      <div class="dhead"><span class="no">${esc(tek.ekip||'?')}</span><div class="kpi"><small>Plaka</small><b>${esc(tek.plaka)}</b></div><div class="kpi"><small>Kullanıcı</small><span>${esc(tek.kisi)}</span></div></div>
+      <div class="akpi"><div class="kpi"><small>Ort. ilk kontak</small><b>${dkTxt(o.ortI)}</b></div><div class="kpi"><small>Ort. son kontak</small><b>${dkTxt(o.ortS)}</b></div><div class="kpi"><small>Ort. kullanım</small><b>${sureTxt(o.ortSure)}</b></div><div class="kpi"><small>Kullanılan gün</small><b>${o.gun}/${H.gunler.length}</b></div></div>
+      <div class="arows"><div class="arow ahead"><span></span><span class="tl-olcek"><b style="left:${(480-TL0)/(TL1-TL0)*100}%">08</b><b style="left:${(720-TL0)/(TL1-TL0)*100}%">12</b><b style="left:${(1020-TL0)/(TL1-TL0)*100}%">17</b></span><span></span></div>
+      ${o.v.map(x=>`<div class="arow"><span class="ag">${gunEt(x.t)}</span>${zamanCubuk(x)}<span class="at num">${x.i==null&&x.s==null?'–':dkTxt(x.i)+'–'+dkTxt(x.s)}<small>${x.sure!=null?sureTxt(x.sure):''}${x.disi?' · mesai dışı':''}</small></span></div>`).join('')}</div>
+      <p class="status">Saatler araç takip sistemindeki ilk kontak açma ve son kontak kapama kayıtlarıdır. Aradaki süre aracın gün içindeki kullanım aralığını gösterir; kesintisiz sürüş anlamına gelmez. 06:00'dan önce ya da 20:00'den sonraki kontaklar "mesai dışı" olarak işaretlenir ve ortalamalara katılmaz.</p>
+    </div>`;
+    return;
+  }
+  const satir=a=>{const o=aracOzet(a,H.gunler);return `<tr class="krow" data-arac="${esc(a.plaka)}"><td><b>${esc(a.ekip||'?')}</b></td><td class="num">${dkTxt(o.ortI)}</td><td class="num">${dkTxt(o.ortS)}</td><td class="num">${sureTxt(o.ortSure)}</td><td class="num">${o.gun}/${H.gunler.length}</td><td class="num">${o.disi||'–'}</td><td class="num">${esc(a.plaka)}</td><td>${esc(a.kisi)}</td></tr>`;};
+  const gridH=`<div class="tw"><table class="tbl kt atbl agrid"><thead><tr><th>Ekip</th>${H.gunler.map(t=>`<th>${gunEt(t)}</th>`).join('')}</tr></thead><tbody>${araclar.map(a=>`<tr class="krow" data-arac="${esc(a.plaka)}"><td><b>${esc(a.ekip||'?')}</b></td>${H.gunler.map(t=>{const x=a.g[t]||[];const i=saatDk(x[0]),s=saatDk(x[1]);const d=(i!=null&&i<360)||(s!=null&&s>1200);return `<td class="num${d?' disi':''}">${x[0]||x[1]?(x[0]||'–')+'<br>'+(x[1]||'–'):'<span class="status">–</span>'}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
+  v.innerHTML=`<div class="detail"><div class="lhead"><p class="sect">Araç takip · Çallı · ${araclar.length} araç</p>${sec}</div>
+    <div class="tw"><table class="tbl kt atbl"><thead><tr><th>Ekip</th><th>Ort. ilk</th><th>Ort. son</th><th>Ort. kullanım</th><th>Gün</th><th>Mesai dışı</th><th>Plaka</th><th>Kullanıcı</th></tr></thead><tbody>${araclar.map(satir).join('')}</tbody></table></div>
+    <p class="sect">Gün gün ilk / son kontak</p>${gridH}
+    <p class="status">Bir satıra dokun, o aracın haftalık ayrıntısı açılsın. Kırmızı hücreler 06:00'dan önce ya da 20:00'den sonraki kontaklardır; ortalamalara katılmaz.</p></div>`;
+}
+
 // ---------- AI veri bloğu ----------
 function veriBlogu(t){
   const gun=S.days[t]; if(!gun) return 'VERİ YOK';
@@ -427,6 +498,7 @@ function veriBlogu(t){
     for(const o of dg.hedefler) out.push(`${o.k} ${KISA[o.k]||o.ad} | +${o.tot} ${o.up?'hedef dışı iş':'yeni kayıt'} | ${o.by.map(([e,n])=>e+': '+n).join(', ')} | TM oranı ${pct(o.yo)} → ${pct(o.to)}${o.kotu?' (kötüleşti)':''}`);
     if(dg.nvs.length) out.push('NVS puanı düşen: '+dg.nvs.map(([e,n])=>e+' (−'+n+')').join(', '));
     out.push('Ekip toplamları (backlog hariç): '+dg.ekipler.map(([e,n])=>e+': '+n).join(', '));}
+  {const hs=Object.keys(S.arac||{}).sort(); if(hs.length){const H=S.arac[hs[hs.length-1]]; out.push(`\nARAÇ TAKİP (${trT(H.hafta)}–${trT(H.bitis)}, ilk kontak açma / son kontak kapama; 06:00 öncesi ve 20:00 sonrası mesai dışı):`); for(const a of H.araclar){const o=aracOzet(a,H.gunler); out.push(`${a.ekip||'?'} ${a.plaka}: ort. ilk ${dkTxt(o.ortI)}, ort. son ${dkTxt(o.ortS)}, ort. kullanım ${sureTxt(o.ortSure)}, ${o.gun}/${H.gunler.length} gün, mesai dışı ${o.disi} | `+H.gunler.map(t=>{const x=a.g[t]||[];return kisa(t)+' '+(x[0]||'-')+'-'+(x[1]||'-');}).join(', '));}}}
   out.push('\nPP GEÇMİŞİ:');
   const ekipler=Object.keys(gun.ekipler).sort();
   out.push('tarih|'+ekipler.join('|'));
@@ -519,6 +591,7 @@ function render(){
   renderStrip(); renderSugg();
   if(S.tab==='E') renderEkipler();
   if(S.tab==='D') renderDegisim();
+  if(S.tab==='R') renderArac();
   if(!$('full').hidden) renderFull();
 }
 function renderStrip(){
@@ -761,8 +834,8 @@ async function kaydet(){
 }
 
 // ---------- olaylar ----------
-function sekme(t){S.tab=t;for(const x of 'ADE'){$('tab'+x).setAttribute('aria-selected',t===x);$('view'+x).hidden=t!==x;}if(t==='D')renderDegisim();if(t==='E')renderEkipler();}
-$('tabA').onclick=()=>sekme('A'); $('tabD').onclick=()=>sekme('D'); $('tabE').onclick=()=>{S.team=null;sekme('E');};
+function sekme(t){S.tab=t;$('eksik').hidden=t==='R';for(const x of 'ADER'){$('tab'+x).setAttribute('aria-selected',t===x);$('view'+x).hidden=t!==x;}if(t==='D')renderDegisim();if(t==='E')renderEkipler();if(t==='R')renderArac();}
+$('tabA').onclick=()=>sekme('A'); $('tabD').onclick=()=>sekme('D'); $('tabR').onclick=()=>{S.aracSec=null;sekme('R');}; $('tabE').onclick=()=>{S.team=null;sekme('E');};
 $('daySel').onchange=e=>{S.sel=e.target.value;S.manual=S.sel!==gunler().slice(-1)[0];render();};
 $('upBtn').onclick=()=>{S.staged=[];renderStaged();$('upMsg').textContent='';$('sheet').hidden=false;};
 $('shClose').onclick=()=>{$('sheet').hidden=true;};
@@ -775,6 +848,11 @@ dr.addEventListener('drop',e=>{e.preventDefault();dr.classList.remove('on');dosy
 $('shSave').onclick=kaydet;
 $('sugg').addEventListener('click',e=>{const b=e.target.closest('button');if(b)sor(b.textContent);});
 $('strip').addEventListener('click',e=>{const b=e.target.closest('[data-team]');if(b){S.team=b.dataset.team;sekme('E');}});
+$('viewR').addEventListener('click',e=>{
+  if(e.target.closest('[data-aracgeri]')){S.aracSec=null;renderArac();return;}
+  const r=e.target.closest('[data-arac]'); if(r){S.aracSec=r.dataset.arac;renderArac();window.scrollTo({top:0});}
+});
+$('viewR').addEventListener('change',e=>{if(e.target.id==='haftaSel'){S.hafta=e.target.value;renderArac();}});
 $('viewE').addEventListener('click',e=>{
   if(e.target.closest('#fullBtn')){renderFull();$('full').hidden=false;return;}
   const dv=e.target.closest('[data-dv]'); if(dv){S.gorunum=dv.dataset.dv;renderEkipler();return;}
@@ -811,7 +889,7 @@ async function coz(kim,sifre){
   return JSON.parse(new TextDecoder().decode(pt));
 }
 function oturumAc(v){
-  S.mod=v.mod; S.ekip=v.ekip||null; S.days=tamamlaGunler(v.gunler||{}); S.loaded=true; S.team=null;
+  S.mod=v.mod; S.ekip=v.ekip||null; S.days=tamamlaGunler(v.gunler||{}); S.arac=v.arac||{}; S.loaded=true; S.team=null;
   S.sel=gunler().slice(-1)[0]||null;
   $('tabE').textContent=S.mod==='ekip'?'Karnem':'Ekipler';
   $('who').textContent=S.mod==='ekip'?S.ekip+' ekibi':'Yönetici';
